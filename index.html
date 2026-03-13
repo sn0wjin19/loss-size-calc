@@ -12,8 +12,9 @@
     color: #333;
     min-height: 100vh;
     display: flex;
-    justify-content: center;
-    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
     padding: 40px 20px;
   }
   .container {
@@ -60,25 +61,9 @@
     transition: border-color 0.2s;
   }
   input:focus { border-color: #333; }
-  .calc-btn {
-    width: 100%;
-    padding: 12px;
-    background: #333;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-    margin-top: 4px;
-    transition: background 0.2s;
-  }
-  .calc-btn:hover { background: #555; }
   .result {
     margin-top: 20px;
-    display: none;
   }
-  .result.show { display: block; }
   .result-row {
     display: flex;
     justify-content: space-between;
@@ -88,14 +73,22 @@
   .result-row + .result-row { border-top: 1px solid #f0f0f0; }
   .result-label { font-size: 13px; color: #888; }
   .result-value { font-size: 16px; font-weight: 600; }
-  .error {
-    color: #e53e3e;
-    font-size: 13px;
-    text-align: center;
-    margin-top: 10px;
-    display: none;
+  .result-value.na { color: #ccc; font-weight: 400; }
+  .tp-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px 28px;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-top: 16px;
   }
-  .error.show { display: block; }
+  .tp-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 12px;
+  }
 </style>
 </head>
 <body>
@@ -132,36 +125,56 @@
     </div>
   </div>
 
-  <button class="calc-btn" onclick="calculate()">计算</button>
-
-  <div class="error" id="error"></div>
-
-  <div class="result" id="result">
+  <div class="result">
     <div class="result-row">
       <span class="result-label">仓位数量</span>
-      <span class="result-value" id="res-qty">—</span>
+      <span class="result-value na" id="res-qty">n/a</span>
     </div>
     <div class="result-row">
       <span class="result-label">仓位金额</span>
-      <span class="result-value" id="res-amount">—</span>
+      <span class="result-value na" id="res-amount">n/a</span>
     </div>
     <div class="result-row">
       <span class="result-label">预计手续费（开+平）</span>
-      <span class="result-value" id="res-fee">—</span>
+      <span class="result-value na" id="res-fee">n/a</span>
     </div>
     <div class="result-row">
       <span class="result-label">止损幅度</span>
-      <span class="result-value" id="res-pct">—</span>
+      <span class="result-value na" id="res-pct">n/a</span>
     </div>
   </div>
 </div>
 
+<div class="tp-card">
+  <div class="tp-title">止盈目标价格</div>
+  <div class="result-row">
+    <span class="result-label">1 : 1</span>
+    <span class="result-value na" id="tp-1">n/a</span>
+  </div>
+  <div class="result-row">
+    <span class="result-label">1.5 : 1</span>
+    <span class="result-value na" id="tp-15">n/a</span>
+  </div>
+  <div class="result-row">
+    <span class="result-label">2 : 1</span>
+    <span class="result-value na" id="tp-2">n/a</span>
+  </div>
+</div>
+
 <script>
-function showError(msg) {
-  const el = document.getElementById('error');
-  el.textContent = msg;
-  el.classList.add('show');
-  document.getElementById('result').classList.remove('show');
+const inputs = ['entry', 'stop', 'maxLoss', 'fee'];
+inputs.forEach(id => document.getElementById(id).addEventListener('input', calculate));
+
+function setNA(id) {
+  const el = document.getElementById(id);
+  el.textContent = 'n/a';
+  el.classList.add('na');
+}
+
+function setVal(id, text) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.classList.remove('na');
 }
 
 function calculate() {
@@ -169,16 +182,11 @@ function calculate() {
   const stop = parseFloat(document.getElementById('stop').value);
   const maxLoss = parseFloat(document.getElementById('maxLoss').value);
   const feePct = parseFloat(document.getElementById('fee').value);
-  document.getElementById('error').classList.remove('show');
 
-  if (isNaN(entry) || isNaN(stop) || isNaN(maxLoss) || isNaN(feePct)) {
-    return showError('请填写所有字段');
-  }
-  if (entry <= 0 || stop <= 0 || maxLoss <= 0 || feePct < 0) {
-    return showError('价格和金额需大于0，手续费不能为负');
-  }
-  if (entry === stop) {
-    return showError('开单价与止损价不能相同');
+  if (isNaN(entry) || isNaN(stop) || isNaN(maxLoss) || isNaN(feePct) ||
+      entry <= 0 || stop <= 0 || maxLoss <= 0 || feePct < 0 || entry === stop) {
+    ['res-qty', 'res-amount', 'res-fee', 'res-pct', 'tp-1', 'tp-15', 'tp-2'].forEach(setNA);
+    return;
   }
 
   const feeRate = feePct / 100;
@@ -191,11 +199,22 @@ function calculate() {
   const totalFee = qty * feePerUnit;
   const stopPct = (lossPerUnit / entry) * 100;
 
-  document.getElementById('res-qty').textContent = formatNum(qty);
-  document.getElementById('res-amount').textContent = '$' + formatNum(amount);
-  document.getElementById('res-fee').textContent = '$' + formatNum(totalFee);
-  document.getElementById('res-pct').textContent = stopPct.toFixed(2) + '%';
-  document.getElementById('result').classList.add('show');
+  setVal('res-qty', formatNum(qty));
+  setVal('res-amount', '$' + formatNum(amount));
+  setVal('res-fee', '$' + formatNum(totalFee));
+  setVal('res-pct', stopPct.toFixed(2) + '%');
+
+  const dir = entry > stop ? 1 : -1;
+  // TP fee-adjusted: net profit = ratio * costPerUnit
+  // Long: tp(1 - feeRate) = ratio*costPerUnit + entry*(1+feeRate)
+  // Short: tp(1 + feeRate) = entry*(1-feeRate) - ratio*costPerUnit
+  function tpPrice(ratio) {
+    if (dir === 1) return (ratio * costPerUnit + entry * (1 + feeRate)) / (1 - feeRate);
+    else           return (entry * (1 - feeRate) - ratio * costPerUnit) / (1 + feeRate);
+  }
+  setVal('tp-1',  formatNum(tpPrice(1)));
+  setVal('tp-15', formatNum(tpPrice(1.5)));
+  setVal('tp-2',  formatNum(tpPrice(2)));
 }
 
 function formatNum(n) {
