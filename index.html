@@ -61,6 +61,31 @@
     transition: border-color 0.2s;
   }
   input:focus { border-color: #333; }
+  .fee-row {
+    display: flex;
+    gap: 8px;
+  }
+  .fee-row .input-wrap { flex: 1; }
+  .default-fee-btn {
+    flex: 0 0 auto;
+    padding: 0 12px;
+    background: #333;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .default-fee-btn:hover {
+    background: #555;
+    border-color: #555;
+  }
+  .default-fee-btn:disabled {
+    background: #bbb;
+    border-color: #bbb;
+    cursor: default;
+  }
   .result {
     margin-top: 20px;
   }
@@ -119,9 +144,12 @@
 
   <div class="field">
     <label>手续费（单向）</label>
-    <div class="input-wrap">
-      <input type="number" id="fee" placeholder="0.055" value="0.055" step="any">
-      <span class="unit">%</span>
+    <div class="fee-row">
+      <div class="input-wrap">
+        <input type="number" id="fee" placeholder="0.055" value="0.055" step="any">
+        <span class="unit">%</span>
+      </div>
+      <button class="default-fee-btn" id="set-default-fee" type="button">默认</button>
     </div>
   </div>
 
@@ -162,8 +190,67 @@
 </div>
 
 <script>
+const defaultFeeCookieName = 'defaultFeePct';
 const inputs = ['entry', 'stop', 'maxLoss', 'fee'];
+const feeInput = document.getElementById('fee');
+const defaultFeeButton = document.getElementById('set-default-fee');
+
+applyDefaultFee();
+
 inputs.forEach(id => document.getElementById(id).addEventListener('input', calculate));
+defaultFeeButton.addEventListener('click', saveDefaultFee);
+
+function applyDefaultFee() {
+  const savedFee = getCookie(defaultFeeCookieName);
+  const savedFeeNumber = Number(savedFee);
+  if (savedFee !== '' && !isNaN(savedFeeNumber) && savedFeeNumber >= 0) {
+    feeInput.value = savedFee;
+  }
+}
+
+function saveDefaultFee() {
+  const fee = feeInput.value.trim();
+  const feeNumber = Number(fee);
+  if (fee === '' || isNaN(feeNumber) || feeNumber < 0) {
+    feeInput.focus();
+    return;
+  }
+
+  setCookie(defaultFeeCookieName, fee, 365);
+  defaultFeeButton.textContent = '已设';
+  defaultFeeButton.disabled = true;
+  window.setTimeout(() => {
+    defaultFeeButton.textContent = '默认';
+    defaultFeeButton.disabled = false;
+  }, 900);
+}
+
+function setCookie(name, value, days) {
+  const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  setLocalDefaultFee(name, value);
+}
+
+function getCookie(name) {
+  const cookies = document.cookie ? document.cookie.split('; ') : [];
+  const prefix = `${name}=`;
+  const match = cookies.find(cookie => cookie.startsWith(prefix));
+  return match ? decodeURIComponent(match.slice(prefix.length)) : getLocalDefaultFee(name);
+}
+
+function setLocalDefaultFee(name, value) {
+  try {
+    localStorage.setItem(name, value);
+  } catch (error) {}
+}
+
+function getLocalDefaultFee(name) {
+  try {
+    return localStorage.getItem(name) || '';
+  } catch (error) {
+    return '';
+  }
+}
 
 function setNA(id) {
   const el = document.getElementById(id);
