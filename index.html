@@ -24,12 +24,66 @@
     width: 100%;
     max-width: 360px;
     box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: visible;
   }
-  h1 {
+  .page-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    margin-bottom: 24px;
+    padding-top: 4px;
+    overflow: visible;
+  }
+  .page-header h1 {
+    width: 100%;
     text-align: center;
     font-size: 18px;
-    margin-bottom: 24px;
     font-weight: 600;
+    line-height: 1.4;
+    padding: 0 56px;
+  }
+  .nav-btn {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 6px 11px;
+    background: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    color: #333;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .nav-btn:hover {
+    background: #f0f0f0;
+    border-color: #ccc;
+  }
+  .nav-btn:focus-visible {
+    outline: 2px solid #333;
+    outline-offset: 2px;
+  }
+  .new-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #333;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 3px 4px;
+    border: 2px solid #fff;
+    border-radius: 6px;
+    pointer-events: none;
   }
   .field { margin-bottom: 16px; }
   label {
@@ -114,11 +168,22 @@
     color: #555;
     margin-bottom: 12px;
   }
+  @media (max-width: 400px) {
+    body { padding: 24px 16px; }
+    .container { padding: 24px; }
+    .tp-card { padding: 20px 24px; }
+  }
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>以损定仓计算器</h1>
+<div class="container" id="view-loss">
+  <div class="page-header">
+    <h1>以损定仓计算器</h1>
+    <button class="nav-btn" type="button" data-view="add">
+      加仓
+      <span class="new-badge" aria-hidden="true">新</span>
+    </button>
+  </div>
 
   <div class="field">
     <label>开单价格</label>
@@ -173,7 +238,53 @@
   </div>
 </div>
 
-<div class="tp-card">
+<div class="container" id="view-add" hidden>
+  <div class="page-header">
+    <h1>加仓计算器</h1>
+    <button class="nav-btn" type="button" data-view="loss">返回</button>
+  </div>
+
+  <div class="field">
+    <label>持有仓位价格</label>
+    <div class="input-wrap">
+      <input type="number" id="holdPrice" placeholder="0.00" step="any">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>仓位数量</label>
+    <div class="input-wrap">
+      <input type="number" id="holdQty" placeholder="0.00" step="any">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>加仓价格</label>
+    <div class="input-wrap">
+      <input type="number" id="addPrice" placeholder="0.00" step="any">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>加仓数量</label>
+    <div class="input-wrap">
+      <input type="number" id="addQty" placeholder="0.00" step="any">
+    </div>
+  </div>
+
+  <div class="result">
+    <div class="result-row">
+      <span class="result-label">平均持仓成本</span>
+      <span class="result-value na" id="add-avg">n/a</span>
+    </div>
+    <div class="result-row">
+      <span class="result-label">持仓数量</span>
+      <span class="result-value na" id="add-total-qty">n/a</span>
+    </div>
+  </div>
+</div>
+
+<div class="tp-card" id="tp-card">
   <div class="tp-title">止盈目标价格</div>
   <div class="result-row">
     <span class="result-label">1 : 1</span>
@@ -192,13 +303,37 @@
 <script>
 const defaultFeeCookieName = 'defaultFeePct';
 const inputs = ['entry', 'stop', 'maxLoss', 'fee'];
+const addInputs = ['holdPrice', 'holdQty', 'addPrice', 'addQty'];
 const feeInput = document.getElementById('fee');
 const defaultFeeButton = document.getElementById('set-default-fee');
+const viewLoss = document.getElementById('view-loss');
+const viewAdd = document.getElementById('view-add');
+const tpCard = document.getElementById('tp-card');
 
 applyDefaultFee();
+showView(location.hash === '#add' ? 'add' : 'loss');
 
 inputs.forEach(id => document.getElementById(id).addEventListener('input', calculate));
+addInputs.forEach(id => document.getElementById(id).addEventListener('input', calculateAdd));
 defaultFeeButton.addEventListener('click', saveDefaultFee);
+document.querySelectorAll('[data-view]').forEach(btn => {
+  btn.addEventListener('click', () => showView(btn.dataset.view));
+});
+window.addEventListener('hashchange', () => {
+  showView(location.hash === '#add' ? 'add' : 'loss');
+});
+
+function showView(name) {
+  const isAdd = name === 'add';
+  viewLoss.hidden = isAdd;
+  viewAdd.hidden = !isAdd;
+  tpCard.hidden = isAdd;
+  document.title = isAdd ? '加仓计算器' : '以损定仓计算器';
+  const nextHash = isAdd ? '#add' : '';
+  if (location.hash !== nextHash) {
+    history.replaceState(null, '', nextHash || location.pathname);
+  }
+}
 
 function applyDefaultFee() {
   const savedFee = getCookie(defaultFeeCookieName);
@@ -302,6 +437,25 @@ function calculate() {
   setVal('tp-1',  formatNum(tpPrice(1)));
   setVal('tp-15', formatNum(tpPrice(1.5)));
   setVal('tp-2',  formatNum(tpPrice(2)));
+}
+
+function calculateAdd() {
+  const holdPrice = parseFloat(document.getElementById('holdPrice').value);
+  const holdQty = parseFloat(document.getElementById('holdQty').value);
+  const addPrice = parseFloat(document.getElementById('addPrice').value);
+  const addQty = parseFloat(document.getElementById('addQty').value);
+
+  if (isNaN(holdPrice) || isNaN(holdQty) || isNaN(addPrice) || isNaN(addQty) ||
+      holdPrice <= 0 || holdQty <= 0 || addPrice <= 0 || addQty <= 0) {
+    ['add-avg', 'add-total-qty'].forEach(setNA);
+    return;
+  }
+
+  const totalQty = holdQty + addQty;
+  const avgCost = (holdPrice * holdQty + addPrice * addQty) / totalQty;
+
+  setVal('add-avg', formatNum(avgCost));
+  setVal('add-total-qty', formatNum(totalQty));
 }
 
 function formatNum(n) {
